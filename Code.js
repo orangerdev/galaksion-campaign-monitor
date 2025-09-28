@@ -54,12 +54,12 @@ function galaksionGetCampaignsYesterday() {
 }
 
 function galaksionGetCampaignsLast2Days() {
-  const galaksionCampaign = new GalaksionCampaigns(SHEET_CAMPAIGN_LAST_2DAYS);
-
+  const galaksionCampaign = new GalaksionCampaigns();
+  galaksionCampaign.setSheet(SHEET_CAMPAIGN_LAST_2DAYS);
   const maxDate = new Date(CAMPAIGN_MAX_TIME);
 
   const minDate = new Date(maxDate);
-  minDate.setDate(minDate.getDate() - 2); // Mengurangi 3 hari dari maxDate
+  minDate.setDate(minDate.getDate() - 2); // Mengurangi 2 hari dari maxDate
 
   updateLastUpdate(SHEET_CAMPAIGN_LAST_3DAYS);
 
@@ -68,6 +68,7 @@ function galaksionGetCampaignsLast2Days() {
 
 function galaksionGetCampaignsLast3Days() {
   const galaksionCampaign = new GalaksionCampaigns(SHEET_CAMPAIGN_LAST_3DAYS);
+  galaksionCampaign.setSheet(SHEET_CAMPAIGN_LAST_3DAYS);
 
   const maxDate = new Date(CAMPAIGN_MAX_TIME);
 
@@ -80,7 +81,8 @@ function galaksionGetCampaignsLast3Days() {
 }
 
 function galaksionGetCampaignsLast7Days() {
-  const galaksionCampaign = new GalaksionCampaigns(SHEET_CAMPAIGN_LAST_7DAYS);
+  const galaksionCampaign = new GalaksionCampaigns();
+  galaksionCampaign.setSheet(SHEET_CAMPAIGN_LAST_7DAYS);
 
   const maxDate = new Date(CAMPAIGN_MAX_TIME);
 
@@ -93,7 +95,8 @@ function galaksionGetCampaignsLast7Days() {
 }
 
 function galaksionGetCampaignsLast30Days() {
-  const galaksionCampaign = new GalaksionCampaigns(SHEET_CAMPAIGN_LAST_30DAYS);
+  const galaksionCampaign = new GalaksionCampaigns();
+  galaksionCampaign.setSheet(SHEET_CAMPAIGN_LAST_30DAYS);
 
   const maxDate = new Date(CAMPAIGN_MAX_TIME);
 
@@ -106,7 +109,8 @@ function galaksionGetCampaignsLast30Days() {
 }
 
 function galaksionGetCampaignsLast60Days() {
-  const galaksionCampaign = new GalaksionCampaigns(SHEET_CAMPAIGN_LAST_60DAYS);
+  const galaksionCampaign = new GalaksionCampaigns();
+  galaksionCampaign.setSheet(SHEET_CAMPAIGN_LAST_60DAYS);
 
   const maxDate = new Date(CAMPAIGN_MAX_TIME);
 
@@ -119,7 +123,8 @@ function galaksionGetCampaignsLast60Days() {
 }
 
 function galaksionGetCampaignsThisMonth() {
-  const galaksionCampaign = new GalaksionCampaigns(SHEET_CAMPAIGN_THIS_MONTH);
+  const galaksionCampaign = new GalaksionCampaigns();
+  galaksionCampaign.setSheet(SHEET_CAMPAIGN_THIS_MONTH);
 
   const maxDate = new Date(CAMPAIGN_MAX_TIME);
 
@@ -132,7 +137,8 @@ function galaksionGetCampaignsThisMonth() {
 }
 
 function galaksionGetCampaignsLastMonth() {
-  const galaksionCampaign = new GalaksionCampaigns(SHEET_CAMPAIGN_LAST_MONTH);
+  const galaksionCampaign = new GalaksionCampaigns();
+  galaksionCampaign.setSheet(SHEET_CAMPAIGN_LAST_MONTH);
 
   // Mendapatkan tanggal hari ini
   const today = new Date();
@@ -153,7 +159,8 @@ function galaksionGetCampaignsLastMonth() {
 }
 
 function galaksionGetCampaignsLas2MonthsAgo() {
-  const galaksionCampaign = new GalaksionCampaigns(SHEET_CAMPAIGN_LAST_2_MONTH);
+  const galaksionCampaign = new GalaksionCampaigns();
+  galaksionCampaign.setSheet(SHEET_CAMPAIGN_LAST_2_MONTH);
 
   // Mendapatkan tanggal hari ini
   const today = new Date();
@@ -174,15 +181,106 @@ function galaksionGetCampaignsLas2MonthsAgo() {
 }
 
 function galaksionStopCampaigns() {
-  const galaksionCampaign = new GalaksionCampaigns();
+  let campaigns = [];
 
-  galaksionCampaign.stopCampaigns();
+  const theLastRow = SHEET_STOPCAMPAIGN.getLastRow();
+  const theValues = SHEET_STOPCAMPAIGN.getRange(
+    "A1:A" + theLastRow
+  ).getValues();
+
+  if (theValues.length == 0) return;
+
+  if (theValues[0].length == 0) return;
+
+  if (theValues[0][0] == "#N/A") return;
+
+  campaigns = theValues.map((dvalue) => {
+    return dvalue[0];
+  });
+
+  try {
+    const galaksionCampaign = new GalaksionCampaigns();
+
+    // Use the new pauseCampaigns method instead of old API
+    const results = galaksionCampaign.pauseCampaigns(campaigns);
+
+    Logger.log({ results });
+
+    // Check results and log accordingly
+    const successfulCampaigns = results
+      .filter((r) => r.success)
+      .map((r) => r.campaignId);
+    const failedCampaigns = results.filter((r) => !r.success);
+
+    if (successfulCampaigns.length > 0) {
+      writeLog(`Stop campaigns : ${successfulCampaigns.join(", ")}`);
+    }
+
+    if (failedCampaigns.length > 0) {
+      const failedIds = failedCampaigns.map((r) => r.campaignId);
+      const errors = failedCampaigns.map((r) => r.error).join(", ");
+      writeLog(
+        `Cant stop campaigns : ${failedIds.join(", ")} | Reason: ${errors}`
+      );
+    }
+  } catch (error) {
+    Logger.log({ error: error.message });
+    writeLog(`⚠️ Error stopping campaigns: ${error.message}`);
+  }
 }
 
 function galaksionRerunCampaigns() {
-  const galaksionCampaign = new GalaksionCampaigns();
+  let campaigns = [];
 
-  galaksionCampaign.rerunCampaigns();
+  if (ENABLE_AUTOMATION !== "y") {
+    writeLog("Rerun disabled");
+    return false;
+  }
+
+  const theLastRow = SHEET_RERUNCAMPAIGN.getLastRow();
+  const theValues = SHEET_RERUNCAMPAIGN.getRange(
+    "A1:A" + theLastRow
+  ).getValues();
+
+  if (theValues.length == 0) return;
+
+  if (theValues[0].length == 0) return;
+
+  if (theValues[0][0] == "#N/A") return;
+
+  campaigns = theValues.map((dvalue) => {
+    return dvalue[0];
+  });
+
+  try {
+    const galaksionCampaign = new GalaksionCampaigns();
+
+    // Use the new resumeCampaigns method instead of old API
+    const results = galaksionCampaign.resumeCampaigns(campaigns);
+
+    Logger.log({ results, campaigns, theValues });
+
+    // Check results and log accordingly
+    const successfulCampaigns = results
+      .filter((r) => r.success)
+      .map((r) => r.campaignId);
+    const failedCampaigns = results.filter((r) => !r.success);
+
+    if (successfulCampaigns.length > 0) {
+      writeLog(`Start campaigns : ${successfulCampaigns.join(", ")}`);
+    }
+
+    if (failedCampaigns.length > 0) {
+      const failedIds = failedCampaigns.map((r) => r.campaignId);
+      const errors = failedCampaigns.map((r) => r.error).join(", ");
+      writeLog(
+        `Cant start campaigns : ${failedIds.join(", ")} | Reason: ${errors}`
+      );
+    }
+  } catch (error) {
+    Logger.log({ error: error.message });
+    writeLog(`⚠️ Error starting campaigns: ${error.message}`);
+  }
 }
 
 function checkAndUpdateAutomation() {

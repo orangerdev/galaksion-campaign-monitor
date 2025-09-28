@@ -544,7 +544,10 @@ class GalaksionCampaigns {
       // For statistics API, the response structure may be different
       // Check if we have data in the response
       if (!response || !response.rows || response.rows.length === 0) {
-        writeLog("No campaign data found in response");
+        writeLog(
+          "No campaign data found in response. Sheet:" +
+            this.sheetTarget.getName()
+        );
         // If no more data, break the loop
         if (thePage === 0) {
           writeLog("No data at all for the specified date range");
@@ -626,81 +629,6 @@ class GalaksionCampaigns {
     this.writeCampaign(campaigns);
 
     Logger.log(`Total running campaigns: ${runningCampaigns}`);
-  }
-
-  stopCampaigns() {
-    let campaigns = [];
-
-    const theLastRow = SHEET_STOPCAMPAIGN.getLastRow();
-    const theValues = SHEET_STOPCAMPAIGN.getRange(
-      "A1:A" + theLastRow
-    ).getValues();
-
-    if (theValues.length == 0) return;
-
-    if (theValues[0].length == 0) return;
-
-    if (theValues[0][0] == "#N/A") return;
-
-    campaigns = theValues.map((dvalue) => {
-      return dvalue[0];
-    });
-
-    const response = this.sendPutRequest("client/campaigns/stop/", {
-      campaignIds: campaigns,
-    });
-
-    Logger.log({ response });
-
-    if (response.result === "success") {
-      writeLog(`Stop campaigns : ${campaigns.join(", ")}`);
-    } else if (response?.error?.message) {
-      writeLog(
-        `Cant stop campaigns : ${campaigns.join(", ")} | Reason: ${
-          response.error.message
-        }`
-      );
-    }
-  }
-
-  rerunCampaigns() {
-    let campaigns = [];
-
-    if (ENABLE_AUTOMATION !== "y") {
-      writeLog("Rerun disabled");
-      return false;
-    }
-
-    const theLastRow = SHEET_RERUNCAMPAIGN.getLastRow();
-    const theValues = SHEET_RERUNCAMPAIGN.getRange(
-      "A1:A" + theLastRow
-    ).getValues();
-
-    if (theValues.length == 0) return;
-
-    if (theValues[0].length == 0) return;
-
-    if (theValues[0][0] == "#N/A") return;
-
-    campaigns = theValues.map((dvalue) => {
-      return dvalue[0];
-    });
-
-    const response = this.sendPutRequest("client/campaigns/start/", {
-      campaignIds: campaigns,
-    });
-
-    Logger.log({ response, campaigns, theValues });
-
-    if (response.result === "success") {
-      writeLog(`Start campaigns : ${campaigns.join(", ")}`);
-    } else if (response?.error?.message) {
-      writeLog(
-        `Cant start campaigns : ${campaigns.join(", ")} | Reason: ${
-          response.error.message
-        }`
-      );
-    }
   }
 
   getZones(campaignId, dateFrom, dateTill) {
