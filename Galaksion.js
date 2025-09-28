@@ -348,26 +348,6 @@ class GalaksionCampaigns {
   }
 
   /**
-   * Converts numeric campaign status to human-readable string (legacy method)
-   * @param {number} status - Numeric status code
-   * @returns {string} Human-readable status string
-   */
-  getCampaignStatus(status) {
-    switch (status) {
-      case 5:
-        return "testing";
-      case 6:
-        return "working";
-      case 7:
-        return "paused";
-      case 8:
-        return "stopped";
-      case 9:
-        return "completed";
-    }
-  }
-
-  /**
    * Update campaign status
    * @param {string} campaignId - The campaign ID to update
    * @param {number} status - The status to set (0 = working, 100 = paused)
@@ -636,6 +616,19 @@ class GalaksionCampaigns {
       // For statistics API, the response structure may be different
       // Check if we have data in the response
       if (!response || !response.rows || response.rows.length === 0) {
+        if (response.code && response.code == "406") {
+          // refresh token and retry
+          const newToken = this.refreshToken();
+          if (newToken) {
+            // Retry the current page
+            thePage--;
+            continue;
+          } else {
+            writeLog("Token expired. Failed to refresh token");
+            return;
+          }
+        }
+
         writeLog(
           "No campaign data found in response. Sheet:" +
             this.sheetTarget.getName()
