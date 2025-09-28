@@ -1,0 +1,551 @@
+class GalaksionCampaigns {
+  constructor() {
+    this.url = "https://adv.clickadu.com/api/v1.0/";
+    this.sheetTarget = null;
+    this.emailAddress = null;
+    this.password = null;
+  }
+
+  setEmail(emailAddress) {
+    this.emailAddress = emailAddress;
+  }
+
+  setPassword(password) {
+    this.password = password;
+  }
+
+  setSheet(sheet) {
+    this.sheetTarget = sheet;
+  }
+
+  generateToken() {
+    try {
+      // Set the new settings object
+      var newSettings = {
+        email: this.emailAddress,
+        password: this.password,
+      };
+
+      // Convert the settings object to a JSON string
+      var newSettingsJson = JSON.stringify(newSettings);
+
+      // Set up the HTTP request options
+      var options = {
+        method: "post",
+        contentType: "application/json",
+        payload: newSettingsJson,
+        headers: {
+          Accept: "application/json",
+        },
+        muteHttpExceptions: true, // Ensure errors are caught and returned
+      };
+
+      // Make the HTTP request
+      var response = UrlFetchApp.fetch(
+        "https://ssp2-api.galaksion.com/api/v1/auth",
+        options
+      );
+
+      // Parse the JSON response
+      var result = JSON.parse(response.getContentText());
+
+      // Check if the token exists
+      if (result && result.token) {
+        Logger.log("Token received.");
+        writeLog("Token received. ✅");
+
+        Logger.log(result);
+
+        return result.token;
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (error) {
+      // Log an error if the token is missing
+      Logger.log("Error: " + error.message);
+      writeLog("⚠️ " + error.message);
+
+      return null;
+      return null;
+    }
+  }
+
+  setToken(token) {
+    SHEET_CONFIG.getRange("B4").setValue(token);
+  }
+
+  getToken() {
+    return SHEET_CONFIG.getRange("B4").getValue();
+  }
+
+  refreshToken() {
+    try {
+      var options = {
+        method: "post",
+        contentType: "application/json",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${GALAKSION_TOKEN}`,
+        },
+        muteHttpExceptions: true, // Ensure errors are caught and returned
+      };
+
+      var response = UrlFetchApp.fetch(
+        "https://ssp2-api.galaksion.com/jwt/refresh",
+        options
+      );
+
+      // Parse the JSON response
+      var result = JSON.parse(response.getContentText());
+
+      // Check if the token exists
+      if (result && result.token) {
+        Logger.log("Token refreshed.");
+        writeLog("Token refreshed. ✅");
+
+        this.setToken(result.token);
+
+        return result.token;
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (error) {
+      // Log an error if the token is missing
+      Logger.log("Error: " + error.message);
+      writeLog("⚠️ " + error.message);
+
+      return null;
+    }
+  }
+
+  authorizeRequest() {}
+
+  /**
+   * Send request data to clickadu
+   * @param object params
+   */
+  sendGetRequest(page, params) {
+    // Use different base URL for statistics endpoint
+    let baseUrl =
+      page === "statistics" ? "https://ssp2-api.galaksion.com/" : this.url;
+    let url = baseUrl + page;
+
+    if (params instanceof Object) {
+      url += "?";
+      const Aparams = [];
+
+      Object.keys(params).forEach((key) => {
+        const value = params[key];
+        if (value instanceof Array) {
+          value.forEach((_v) => {
+            Aparams.push(`${key}[]=${_v}`);
+          });
+        } else {
+          if (value !== null && value !== undefined) {
+            Aparams.push(`${key}=${encodeURIComponent(value)}`);
+          }
+        }
+      });
+
+      url = url + Aparams.join("&");
+    }
+
+    const response = UrlFetchApp.fetch(url, {
+      headers: {
+        Authorization: `Bearer ${this.getToken()}`,
+      },
+      muteHttpExceptions: true,
+    });
+
+    Logger.log({ url });
+
+    return JSON.parse(response.getContentText());
+  }
+
+  /**
+   * Send post data to clickadu
+   */
+  sendPostRequest(page, params) {
+    let url = this.url + page;
+
+    const options = {
+      headers: {
+        Authorization: `Bearer ${this.getToken()}`,
+      },
+      contentType: "application/json",
+      method: "post",
+      payload: JSON.stringify(params),
+      muteHttpExceptions: true,
+    };
+
+    const response = UrlFetchApp.fetch(url, options);
+
+    return JSON.parse(response.getContentText());
+  }
+
+  /**
+   * Send put data to clickadu
+   */
+  sendPutRequest(page, params) {
+    let url = this.url + page;
+
+    Logger.log({ url });
+
+    const options = {
+      headers: {
+        Authorization: `Bearer ${GALAKSION_TOKEN}`,
+        Referer: "https://adv.clickadu.com/campaigns",
+      },
+      contentType: "application/json",
+      method: "put",
+      payload: JSON.stringify(params),
+      muteHttpExceptions: true,
+    };
+
+    const response = UrlFetchApp.fetch(url, options);
+
+    return JSON.parse(response.getContentText());
+  }
+
+  getCampaignStatus(status) {
+    switch (status) {
+      case 5:
+        return "testing";
+      case 6:
+        return "working";
+      case 7:
+        return "paused";
+      case 8:
+        return "stopped";
+      case 9:
+        return "completed";
+    }
+  }
+
+  clearCampaigns() {
+    if (this.sheetTarget.getLastRow() === 0) {
+      Logger.log("No data available to clear.");
+      return;
+    }
+
+    const startCell = this.sheetTarget.getRange("A2:G");
+
+    const startRow = startCell.getRow();
+    const startColumn = startCell.getColumn();
+
+    const lastRow = this.sheetTarget.getLastRow();
+    const lastColumn = this.sheetTarget.getLastColumn() + 1;
+
+    if (lastRow < startRow || lastColumn < startColumn) {
+      Logger.log("No data available to clear.");
+      return;
+    }
+
+    const range = this.sheetTarget.getRange(
+      startRow,
+      startColumn,
+      lastRow - startRow + 1,
+      lastColumn - startColumn + 1
+    );
+
+    range.clearContent();
+  }
+
+  writeCampaign(campaigns) {
+    // Only write if there are campaigns to write
+    if (campaigns.length > 0) {
+      // write the campaigns start from row 2
+      this.sheetTarget
+        .getRange(2, 1, campaigns.length, 9)
+        .setValues(
+          campaigns.map((campaign) => [
+            campaign.id,
+            campaign.name,
+            campaign.impression,
+            campaign.rate,
+            campaign.spent,
+            campaign.conversion,
+            campaign.cpa,
+            campaign.status,
+            campaign.max,
+          ])
+        );
+    } else {
+      Logger.log("No campaigns to write to sheet");
+      writeLog("No campaigns found to write to sheet");
+    }
+  }
+
+  /**
+   * Get all campaigns data
+   */
+  getCampaigns(minDate, maxDate) {
+    // Updated to use new Galaksion Statistics API
+    // Endpoint: https://ssp2-api.galaksion.com/statistics
+    // Uses filters, order, limit, offset parameters as per API documentation
+    this.clearCampaigns();
+
+    const strMinDate =
+      minDate.getFullYear() +
+      "-" +
+      addLeadingZero(minDate.getMonth() + 1) +
+      "-" +
+      addLeadingZero(minDate.getDate()) +
+      " 00:00:00";
+    const strMaxDate =
+      maxDate.getFullYear() +
+      "-" +
+      addLeadingZero(maxDate.getMonth() + 1) +
+      "-" +
+      addLeadingZero(maxDate.getDate()) +
+      " 23:59:59";
+
+    let runningCampaigns = 0;
+    let campaigns = [];
+
+    const filters = {
+      groups: [
+        {
+          label: "Geo",
+          value: "geo",
+        },
+        {
+          label: "Campaign",
+          value: "campaign",
+        },
+      ],
+      dateFrom: strMinDate,
+      dateTo: strMaxDate,
+      geo: [],
+      cities: [],
+      platforms: "",
+      os: [],
+      formats: [],
+      browsers: [],
+      connections: "",
+      campaigns: [],
+      zones: "",
+      isp: "",
+      cpaTests: "",
+      trafficQualityPresets: [],
+    };
+
+    const order = [
+      {
+        field: "geo",
+        direction: "DESC",
+      },
+    ];
+
+    for (let thePage = 0; thePage < TOTAL_PAGES; thePage++) {
+      const response = this.sendGetRequest("statistics", {
+        filters: JSON.stringify(filters),
+        order: JSON.stringify(order),
+        limit: 25,
+        offset: thePage * 25,
+        delta: null,
+      });
+
+      Logger.log({
+        response,
+        groupBy: filters.groups,
+        strMinDate,
+        strMaxDate,
+      });
+
+      if (response?.error) {
+        writeLog(response.error.message || "API Error occurred");
+        return;
+      }
+
+      if (response?.errors) {
+        Logger.log("API Errors:", response.errors);
+        writeLog("API returned errors");
+        return;
+      }
+
+      // For statistics API, the response structure may be different
+      // Check if we have data in the response
+      if (!response || !response.data || response.data.length === 0) {
+        writeLog("No campaign data found in response");
+        // If no more data, break the loop
+        if (thePage === 0) {
+          writeLog("No data at all for the specified date range");
+        }
+        return;
+      }
+
+      response.data.forEach((campaignData) => {
+        runningCampaigns++;
+
+        let should = "running";
+        let max = MAX_CPA;
+
+        // For statistics API, the field name is likely 'campaign' instead of 'name'
+        let campaignName = campaignData.campaign || campaignData.name || "";
+        let campaignId = campaignData.campaignId || campaignData.id;
+
+        if (!campaignName.includes("STOP") && !campaignName.includes("REST")) {
+          let findMax = findCampaignParameter(campaignName, "MAX");
+
+          if (findMax) max = findMax;
+
+          // Map statistics API fields to expected fields
+          let conversion = parseInt(
+              campaignData.conversions || campaignData.conversion || 0
+            ),
+            spent = parseFloat(campaignData.spend || campaignData.spent || 0),
+            cpa = parseFloat(campaignData.cpa || 0);
+
+          if (conversion === 0 && spent > 0) {
+            cpa = spent;
+
+            Logger.log({ test: "Conversion Zero", conversion, cpa, spent });
+          }
+
+          campaigns.push({
+            id: campaignId,
+            name: campaignName,
+            impression:
+              campaignData.impressions || campaignData.impression || 0,
+            rate: parseFloat(campaignData.rate || campaignData.ctr || 0),
+            spent,
+            conversion,
+            cpa,
+            status: campaignData.status || "active", // Default status since statistics API may not have status
+            max,
+          });
+
+          Logger.log({
+            test: "Campaign push",
+            id: campaignId,
+            name: campaignName,
+            rate: parseFloat(campaignData.rate || campaignData.ctr || 0),
+            spent,
+            cpm: parseFloat(campaignData.cpm || campaignData.currentCpm || 0),
+            cpa,
+            conversion,
+            status: campaignData.status || "active",
+          });
+        }
+      });
+    }
+
+    this.writeCampaign(campaigns);
+
+    Logger.log(`Total running campaigns: ${runningCampaigns}`);
+  }
+
+  stopCampaigns() {
+    let campaigns = [];
+
+    const theLastRow = SHEET_STOPCAMPAIGN.getLastRow();
+    const theValues = SHEET_STOPCAMPAIGN.getRange(
+      "A1:A" + theLastRow
+    ).getValues();
+
+    if (theValues.length == 0) return;
+
+    if (theValues[0].length == 0) return;
+
+    if (theValues[0][0] == "#N/A") return;
+
+    campaigns = theValues.map((dvalue) => {
+      return dvalue[0];
+    });
+
+    const response = this.sendPutRequest("client/campaigns/stop/", {
+      campaignIds: campaigns,
+    });
+
+    Logger.log({ response });
+
+    if (response.result === "success") {
+      writeLog(`Stop campaigns : ${campaigns.join(", ")}`);
+    } else if (response?.error?.message) {
+      writeLog(
+        `Cant stop campaigns : ${campaigns.join(", ")} | Reason: ${
+          response.error.message
+        }`
+      );
+    }
+  }
+
+  rerunCampaigns() {
+    let campaigns = [];
+
+    if (ENABLE_AUTOMATION !== "y") {
+      writeLog("Rerun disabled");
+      return false;
+    }
+
+    const theLastRow = SHEET_RERUNCAMPAIGN.getLastRow();
+    const theValues = SHEET_RERUNCAMPAIGN.getRange(
+      "A1:A" + theLastRow
+    ).getValues();
+
+    if (theValues.length == 0) return;
+
+    if (theValues[0].length == 0) return;
+
+    if (theValues[0][0] == "#N/A") return;
+
+    campaigns = theValues.map((dvalue) => {
+      return dvalue[0];
+    });
+
+    const response = this.sendPutRequest("client/campaigns/start/", {
+      campaignIds: campaigns,
+    });
+
+    Logger.log({ response, campaigns, theValues });
+
+    if (response.result === "success") {
+      writeLog(`Start campaigns : ${campaigns.join(", ")}`);
+    } else if (response?.error?.message) {
+      writeLog(
+        `Cant start campaigns : ${campaigns.join(", ")} | Reason: ${
+          response.error.message
+        }`
+      );
+    }
+  }
+
+  getZones(campaignId, dateFrom, dateTill) {
+    const response = this.sendGetRequest("client/stats", {
+      dateFrom,
+      dateTill,
+      groupBy: "zone_id",
+      orderBy: "impressions",
+      orderDest: "desc",
+      page: 1,
+      perPage: 100,
+      campaign_id: [campaignId],
+    });
+
+    const zones = response.result.items.map((item) => {
+      const cpa =
+        item.conversions > 0 ? item.spent / item.conversions : item.spent;
+      return {
+        id: item.zoneId,
+        spent: item.spent,
+        impressions: item.impressions,
+        conversions: item.conversions,
+        cpa,
+      };
+    });
+
+    return zones;
+  }
+
+  excludeZones(campaignId, zones) {
+    const response = this.sendPostRequest(
+      `client/campaigns/${campaignId}/excludeZones/`,
+      {
+        zoneIds: zones,
+      }
+    );
+
+    Logger.log({ response });
+  }
+}
