@@ -74,6 +74,17 @@ class GalaksionCampaigns {
     SHEET_CONFIG.getRange("B4").setValue(token);
   }
 
+  setTokenExpired() {
+    // Set the current date and time in the specified format plus 7hours and 1 minute
+    const dateTime = Utilities.formatDate(
+      new Date(new Date().getTime() + 7 * 60 * 60 * 1000 + 1 * 60 * 1000),
+      "GMT",
+      "yyyy-MM-dd'T'HH:mm:ss'Z'"
+    );
+
+    SHEET_CONFIG.getRange("B6").setValue(dateTime);
+  }
+
   getToken() {
     return SHEET_CONFIG.getRange("B4").getValue();
   }
@@ -104,6 +115,7 @@ class GalaksionCampaigns {
         writeLog("Token refreshed. ✅");
 
         this.setToken(result.token);
+        this.setTokenExpired();
 
         return result.token;
       } else {
@@ -119,6 +131,18 @@ class GalaksionCampaigns {
   }
 
   authorizeRequest() {}
+
+  /**
+   * Generate analytics session ID (32 char hex string)
+   */
+  generateAnalyticsSession() {
+    const chars = "0123456789abcdef";
+    let result = "";
+    for (let i = 0; i < 32; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  }
 
   /**
    * Send request data to clickadu
@@ -150,9 +174,23 @@ class GalaksionCampaigns {
       url = url + Aparams.join("&");
     }
 
+    const analyticsSession = this.generateAnalyticsSession();
+    const analyticsTimestamp = new Date().getTime();
+
     const response = UrlFetchApp.fetch(url, {
       headers: {
         Authorization: `Bearer ${this.getToken()}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        Origin: "https://ssp-adv.galaksion.com",
+        Referer: "https://ssp-adv.galaksion.com/",
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+        "x-ssp": "true",
+        "x-analytics-session": analyticsSession,
+        "x-analytics-timestamp": analyticsTimestamp.toString(),
       },
       muteHttpExceptions: true,
     });
@@ -276,6 +314,15 @@ class GalaksionCampaigns {
     }
   }
 
+  getCampaignStatus(status) {
+    switch (status) {
+      case 0:
+        return "working";
+      case 100:
+        return "stopped";
+    }
+  }
+
   /**
    * Get all campaigns data
    */
@@ -306,10 +353,6 @@ class GalaksionCampaigns {
     const filters = {
       groups: [
         {
-          label: "Geo",
-          value: "geo",
-        },
-        {
           label: "Campaign",
           value: "campaign",
         },
@@ -332,7 +375,7 @@ class GalaksionCampaigns {
 
     const order = [
       {
-        field: "geo",
+        field: "campaign",
         direction: "DESC",
       },
     ];
@@ -341,8 +384,8 @@ class GalaksionCampaigns {
       const response = this.sendGetRequest("statistics", {
         filters: JSON.stringify(filters),
         order: JSON.stringify(order),
-        limit: 25,
-        offset: thePage * 25,
+        limit: 50,
+        offset: thePage * 50,
         delta: null,
       });
 
@@ -366,7 +409,7 @@ class GalaksionCampaigns {
 
       // For statistics API, the response structure may be different
       // Check if we have data in the response
-      if (!response || !response.data || response.data.length === 0) {
+      if (!response || !response.rows || response.rows.length === 0) {
         writeLog("No campaign data found in response");
         // If no more data, break the loop
         if (thePage === 0) {
@@ -375,27 +418,42 @@ class GalaksionCampaigns {
         return;
       }
 
-      response.data.forEach((campaignData) => {
+      response.rows.forEach((campaignData) => {
         runningCampaigns++;
 
         let should = "running";
         let max = MAX_CPA;
 
         // For statistics API, the field name is likely 'campaign' instead of 'name'
-        let campaignName = campaignData.campaign || campaignData.name || "";
-        let campaignId = campaignData.campaignId || campaignData.id;
+        let campaignName = campaignData.campaign; // 992833 - [28/09] FR🇫🇷 [BR:SAMSUNG] [OS:A15]
+        let campaignId = 0;
+        // get campaignId from campaignName, extract number before first space
+        // if not found, use campaignData.campaignId or campaignData.id
+        const campaignIdMatch = campaignName.match(/^(\d+)\s/);
+        if (campaignIdMatch) {
+          campaignId = campaignIdMatch[1];
+        } else {
+          campaignId = campaignData.campaignId || campaignData.id;
+        }
 
-        if (!campaignName.includes("STOP") && !campaignName.includes("REST")) {
-          let findMax = findCampaignParameter(campaignName, "MAX");
+        let campaignTitle = campaignName.replace(/^\d+\s-\s/, "").trim();
+
+        let campaignStatus = this.getCampaignStatus(campaignData.status);
+
+        if (
+          !campaignTitle.includes("STOP") &&
+          !campaignTitle.includes("REST")
+        ) {
+          let findMax = findCampaignParameter(campaignTitle, "MAX");
 
           if (findMax) max = findMax;
 
           // Map statistics API fields to expected fields
-          let conversion = parseInt(
-              campaignData.conversions || campaignData.conversion || 0
-            ),
-            spent = parseFloat(campaignData.spend || campaignData.spent || 0),
-            cpa = parseFloat(campaignData.cpa || 0);
+          let conversion = parseInt(campaignData.conversions || 0),
+            spent = parseFloat(campaignData.money || 0),
+            cpa = parseFloat(
+              spent > 0 && conversion > 0 ? spent / conversion : 0
+            );
 
           if (conversion === 0 && spent > 0) {
             cpa = spent;
@@ -405,14 +463,14 @@ class GalaksionCampaigns {
 
           campaigns.push({
             id: campaignId,
-            name: campaignName,
+            name: campaignTitle,
             impression:
               campaignData.impressions || campaignData.impression || 0,
-            rate: parseFloat(campaignData.rate || campaignData.ctr || 0),
+            rate: parseFloat(campaignData.cpm || 0),
             spent,
             conversion,
             cpa,
-            status: campaignData.status || "active", // Default status since statistics API may not have status
+            status: campaignStatus, // Default status since statistics API may not have status
             max,
           });
 
@@ -425,7 +483,7 @@ class GalaksionCampaigns {
             cpm: parseFloat(campaignData.cpm || campaignData.currentCpm || 0),
             cpa,
             conversion,
-            status: campaignData.status || "active",
+            status: campaignStatus,
           });
         }
       });

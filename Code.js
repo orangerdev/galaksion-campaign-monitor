@@ -23,8 +23,6 @@ function updateLastUpdate(theSheet) {
 }
 
 function galaksionGetCampaignsToday() {
-  galaksionRefreshToken();
-
   const galaksionCampaign = new GalaksionCampaigns();
 
   const minDate = new Date(CAMPAIGN_MIN_TIME);
@@ -38,8 +36,6 @@ function galaksionGetCampaignsToday() {
 }
 
 function galaksionGetCampaignsYesterday() {
-  galaksionRefreshToken();
-
   const galaksionCampaign = new GalaksionCampaigns();
   galaksionCampaign.setSheet(SHEET_CAMPAIGN_YESTERDAY);
 
