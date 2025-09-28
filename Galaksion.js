@@ -245,6 +245,42 @@ class GalaksionCampaigns {
     return JSON.parse(response.getContentText());
   }
 
+  /**
+   * Send patch request to Galaksion API
+   */
+  sendPatchRequest(endpoint, params) {
+    let url = `https://ssp2-api.galaksion.com/${endpoint}`;
+
+    Logger.log({ url });
+
+    const analyticsSession = this.generateAnalyticsSession();
+    const analyticsTimestamp = new Date().getTime();
+
+    const options = {
+      headers: {
+        Authorization: `Bearer ${this.getToken()}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        Origin: "https://ssp-adv.galaksion.com",
+        Referer: "https://ssp-adv.galaksion.com/",
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+        "x-ssp": "true",
+        "x-analytics-session": analyticsSession,
+        "x-analytics-timestamp": analyticsTimestamp.toString(),
+      },
+      method: "patch",
+      payload: JSON.stringify(params),
+      muteHttpExceptions: true,
+    };
+
+    const response = UrlFetchApp.fetch(url, options);
+
+    return JSON.parse(response.getContentText());
+  }
+
   getCampaignStatus(status) {
     switch (status) {
       case 5:
@@ -258,6 +294,104 @@ class GalaksionCampaigns {
       case 9:
         return "completed";
     }
+  }
+
+  /**
+   * Update campaign status
+   * @param {string} campaignId - The campaign ID to update
+   * @param {number} status - The status to set (0 = working, 100 = paused)
+   * @returns {Object} API response
+   */
+  updateCampaignStatus(campaignId, status) {
+    try {
+      Logger.log(`Updating campaign ${campaignId} status to ${status}`);
+      writeLog(
+        `Updating campaign ${campaignId} status to ${
+          status === 0 ? "working" : "paused"
+        }`
+      );
+
+      const response = this.sendPatchRequest(
+        `a/campaigns/status/${campaignId}`,
+        {
+          status: status,
+        }
+      );
+
+      if (response && response.success !== false) {
+        Logger.log(`Campaign ${campaignId} status updated successfully`);
+        writeLog(
+          `✅ Campaign ${campaignId} status updated to ${
+            status === 0 ? "working" : "paused"
+          }`
+        );
+        return response;
+      } else {
+        throw new Error(response.message || "Failed to update campaign status");
+      }
+    } catch (error) {
+      Logger.log(
+        `Error updating campaign ${campaignId} status: ${error.message}`
+      );
+      writeLog(
+        `⚠️ Error updating campaign ${campaignId} status: ${error.message}`
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Pause a campaign (set status to 100)
+   * @param {string} campaignId - The campaign ID to pause
+   * @returns {Object} API response
+   */
+  pauseCampaign(campaignId) {
+    return this.updateCampaignStatus(campaignId, 100);
+  }
+
+  /**
+   * Resume/Start a campaign (set status to 0)
+   * @param {string} campaignId - The campaign ID to resume
+   * @returns {Object} API response
+   */
+  resumeCampaign(campaignId) {
+    return this.updateCampaignStatus(campaignId, 0);
+  }
+
+  /**
+   * Pause multiple campaigns
+   * @param {Array<string>} campaignIds - Array of campaign IDs to pause
+   * @returns {Array<Object>} Array of API responses
+   */
+  pauseCampaigns(campaignIds) {
+    const results = [];
+    for (const campaignId of campaignIds) {
+      try {
+        const result = this.pauseCampaign(campaignId);
+        results.push({ campaignId, success: true, result });
+      } catch (error) {
+        results.push({ campaignId, success: false, error: error.message });
+      }
+    }
+    return results;
+  }
+
+  /**
+   * Resume multiple campaigns
+   * @param {Array<string>} campaignIds - Array of campaign IDs to resume
+   * @returns {Array<Object>} Array of API responses
+   */
+  resumeCampaigns(campaignIds) {
+    const results = [];
+    for (const campaignId of campaignIds) {
+      try {
+        const result = this.resumeCampaign(campaignId);
+        results.push({ campaignId, success: true, result });
+      } catch (error) {
+        results.push({ campaignId, success: false, error: error.message });
+      }
+    }
+    return results;
   }
 
   clearCampaigns() {
