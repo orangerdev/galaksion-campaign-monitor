@@ -1,3 +1,9 @@
+/**
+ * Adds a leading zero to single-digit numbers for formatting purposes
+ * Commonly used for date/time formatting to ensure consistent two-digit display
+ * @param {number|string} value - The value to format
+ * @returns {string} The formatted value with leading zero if needed
+ */
 function addLeadingZero(value) {
   let newValue = "";
 
@@ -11,6 +17,13 @@ function addLeadingZero(value) {
   return newValue;
 }
 
+/**
+ * Extracts parameter values from campaign names using regex pattern matching
+ * Searches for parameters in the format [PARAM:value] within campaign names
+ * @param {string} input - The campaign name or string to search
+ * @param {string} param - The parameter name to find (e.g., "MAX", "CPA")
+ * @returns {string|boolean} Returns the parameter value if found, false otherwise
+ */
 function findCampaignParameter(input, param) {
   // Membuat regex dinamis berdasarkan parameter yang diberikan
   const regex = new RegExp(`\\[${param}:(\\d+(\\.\\d+)?)\\]`);
@@ -24,10 +37,22 @@ function findCampaignParameter(input, param) {
   }
 }
 
+/**
+ * Writes a timestamped log entry to the LOG worksheet
+ * Appends a new row with current datetime and the provided message
+ * @param {string} message - The log message to write
+ * @returns {void}
+ */
 function writeLog(message) {
   SHEET_LOG.appendRow([CURRENT_DATETIME, message]);
 }
 
+/**
+ * Clears old log entries from the LOG worksheet while preserving recent entries
+ * Deletes rows from row 2 up to (last row - 2), keeping the header and last 2 entries
+ * Requires minimum of 5 rows to perform deletion for safety
+ * @returns {void}
+ */
 function clearLogRows() {
   // Mendapatkan jumlah baris terakhir yang berisi data
   const lastRow = SHEET_LOG.getLastRow();

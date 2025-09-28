@@ -1,4 +1,13 @@
+/**
+ * GalaksionCampaigns class handles API interactions with the Galaksion advertising platform
+ * Provides methods for authentication, campaign management, and data retrieval
+ * Integrates with Google Sheets for data storage and campaign monitoring
+ */
 class GalaksionCampaigns {
+  /**
+   * Creates a new instance of GalaksionCampaigns
+   * Initializes API endpoint and authentication properties
+   */
   constructor() {
     this.url = "https://adv.clickadu.com/api/v1.0/";
     this.sheetTarget = null;
@@ -6,18 +15,38 @@ class GalaksionCampaigns {
     this.password = null;
   }
 
+  /**
+   * Sets the email address for API authentication
+   * @param {string} emailAddress - The email address for Galaksion account
+   * @returns {void}
+   */
   setEmail(emailAddress) {
     this.emailAddress = emailAddress;
   }
 
+  /**
+   * Sets the password for API authentication
+   * @param {string} password - The password for Galaksion account
+   * @returns {void}
+   */
   setPassword(password) {
     this.password = password;
   }
 
+  /**
+   * Sets the target Google Sheets worksheet for data output
+   * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - The target worksheet
+   * @returns {void}
+   */
   setSheet(sheet) {
     this.sheetTarget = sheet;
   }
 
+  /**
+   * Generates a new authentication token using email and password
+   * Makes a POST request to the Galaksion auth endpoint and stores the token
+   * @returns {string|null} Returns the authentication token on success, null on failure
+   */
   generateToken() {
     try {
       // Set the new settings object
@@ -66,14 +95,23 @@ class GalaksionCampaigns {
       writeLog("⚠️ " + error.message);
 
       return null;
-      return null;
     }
   }
 
+  /**
+   * Stores the authentication token in the configuration sheet
+   * @param {string} token - The authentication token to store
+   * @returns {void}
+   */
   setToken(token) {
     SHEET_CONFIG.getRange("B4").setValue(token);
   }
 
+  /**
+   * Sets the token expiration time to 7 hours and 1 minute from now
+   * Updates the configuration sheet with the calculated expiration time
+   * @returns {void}
+   */
   setTokenExpired() {
     // Set the current date and time in the specified format plus 7hours and 1 minute
     const dateTime = Utilities.formatDate(
@@ -85,10 +123,19 @@ class GalaksionCampaigns {
     SHEET_CONFIG.getRange("B6").setValue(dateTime);
   }
 
+  /**
+   * Retrieves the current authentication token from the configuration sheet
+   * @returns {string} The stored authentication token
+   */
   getToken() {
     return SHEET_CONFIG.getRange("B4").getValue();
   }
 
+  /**
+   * Refreshes the existing authentication token
+   * Extends the token lifetime without requiring re-authentication
+   * @returns {string|null} Returns the new token on success, null on failure
+   */
   refreshToken() {
     try {
       var options = {
@@ -130,10 +177,16 @@ class GalaksionCampaigns {
     }
   }
 
+  /**
+   * Placeholder for request authorization (currently unused)
+   * @returns {void}
+   */
   authorizeRequest() {}
 
   /**
-   * Generate analytics session ID (32 char hex string)
+   * Generates a random 32-character hexadecimal analytics session ID
+   * Used for tracking API requests and analytics
+   * @returns {string} A 32-character hexadecimal string
    */
   generateAnalyticsSession() {
     const chars = "0123456789abcdef";
@@ -145,8 +198,11 @@ class GalaksionCampaigns {
   }
 
   /**
-   * Send request data to clickadu
-   * @param object params
+   * Sends a GET request to the Galaksion API
+   * Handles URL construction, authentication headers, and analytics tracking
+   * @param {string} page - The API endpoint path
+   * @param {Object} params - Query parameters for the request
+   * @returns {Object} Parsed JSON response from the API
    */
   sendGetRequest(page, params) {
     // Use different base URL for statistics endpoint
@@ -201,7 +257,10 @@ class GalaksionCampaigns {
   }
 
   /**
-   * Send post data to clickadu
+   * Sends a POST request to the Galaksion API
+   * @param {string} page - The API endpoint path
+   * @param {Object} params - Request payload data
+   * @returns {Object} Parsed JSON response from the API
    */
   sendPostRequest(page, params) {
     let url = this.url + page;
@@ -222,7 +281,10 @@ class GalaksionCampaigns {
   }
 
   /**
-   * Send put data to clickadu
+   * Sends a PUT request to the Galaksion API
+   * @param {string} page - The API endpoint path
+   * @param {Object} params - Request payload data
+   * @returns {Object} Parsed JSON response from the API
    */
   sendPutRequest(page, params) {
     let url = this.url + page;
@@ -246,7 +308,11 @@ class GalaksionCampaigns {
   }
 
   /**
-   * Send patch request to Galaksion API
+   * Sends a PATCH request to the Galaksion API
+   * Includes full headers for analytics tracking and authentication
+   * @param {string} endpoint - The API endpoint path
+   * @param {Object} params - Request payload data
+   * @returns {Object} Parsed JSON response from the API
    */
   sendPatchRequest(endpoint, params) {
     let url = `https://ssp2-api.galaksion.com/${endpoint}`;
@@ -281,6 +347,11 @@ class GalaksionCampaigns {
     return JSON.parse(response.getContentText());
   }
 
+  /**
+   * Converts numeric campaign status to human-readable string (legacy method)
+   * @param {number} status - Numeric status code
+   * @returns {string} Human-readable status string
+   */
   getCampaignStatus(status) {
     switch (status) {
       case 5:
@@ -394,6 +465,11 @@ class GalaksionCampaigns {
     return results;
   }
 
+  /**
+   * Clears all campaign data from the target worksheet
+   * Removes content from row 2 onwards, preserving headers
+   * @returns {void}
+   */
   clearCampaigns() {
     if (this.sheetTarget.getLastRow() === 0) {
       Logger.log("No data available to clear.");
@@ -423,6 +499,12 @@ class GalaksionCampaigns {
     range.clearContent();
   }
 
+  /**
+   * Writes campaign data to the target worksheet
+   * Maps campaign objects to spreadsheet rows starting from row 2
+   * @param {Array<Object>} campaigns - Array of campaign objects to write
+   * @returns {void}
+   */
   writeCampaign(campaigns) {
     // Only write if there are campaigns to write
     if (campaigns.length > 0) {
@@ -448,6 +530,11 @@ class GalaksionCampaigns {
     }
   }
 
+  /**
+   * Converts numeric campaign status to human-readable string (current API version)
+   * @param {number} status - Numeric status code (0 = working, 100 = stopped)
+   * @returns {string} Human-readable status string
+   */
   getCampaignStatus(status) {
     switch (status) {
       case 0:
@@ -458,7 +545,12 @@ class GalaksionCampaigns {
   }
 
   /**
-   * Get all campaigns data
+   * Retrieves campaign statistics from Galaksion API for specified date range
+   * Fetches data using the statistics endpoint with pagination and filtering
+   * Processes and writes campaign data to the target worksheet
+   * @param {Date} minDate - Start date for data retrieval
+   * @param {Date} maxDate - End date for data retrieval
+   * @returns {void}
    */
   getCampaigns(minDate, maxDate) {
     // Updated to use new Galaksion Statistics API
@@ -631,6 +723,14 @@ class GalaksionCampaigns {
     Logger.log(`Total running campaigns: ${runningCampaigns}`);
   }
 
+  /**
+   * Retrieves zone performance statistics for a specific campaign
+   * Gets detailed zone-level data including impressions, conversions, and CPA
+   * @param {string} campaignId - The campaign ID to get zone data for
+   * @param {string} dateFrom - Start date in YYYY-MM-DD format
+   * @param {string} dateTill - End date in YYYY-MM-DD format
+   * @returns {Array<Object>} Array of zone statistics objects
+   */
   getZones(campaignId, dateFrom, dateTill) {
     const response = this.sendGetRequest("client/stats", {
       dateFrom,
@@ -658,6 +758,13 @@ class GalaksionCampaigns {
     return zones;
   }
 
+  /**
+   * Excludes specified zones from a campaign
+   * Prevents the campaign from serving ads on the specified zones
+   * @param {string} campaignId - The campaign ID to update
+   * @param {Array<string>} zones - Array of zone IDs to exclude
+   * @returns {void}
+   */
   excludeZones(campaignId, zones) {
     const response = this.sendPostRequest(
       `client/campaigns/${campaignId}/excludeZones/`,
