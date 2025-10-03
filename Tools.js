@@ -59,7 +59,7 @@ function clearLogRows() {
 
   // Memeriksa apakah ada cukup baris untuk dihapus
   // Minimal harus ada 5 baris: header (1) + mulai hapus (2) + minimal 1 baris data + 2 baris terakhir yang tidak dihapus
-  if (lastRow < 5) {
+  if (lastRow < 10) {
     writeLog(
       "Tidak cukup baris untuk dihapus. Minimal harus ada 5 baris data."
     );
