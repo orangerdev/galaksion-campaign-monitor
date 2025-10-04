@@ -32,6 +32,7 @@ const SHEET_CAMPAIGN_LAST_60DAYS = SHEET.getSheetByName("LAST60"); // Last 60 da
 const SHEET_CAMPAIGN_THIS_MONTH = SHEET.getSheetByName("THISMONTH"); // Current month campaign performance
 const SHEET_CAMPAIGN_LAST_MONTH = SHEET.getSheetByName("LASTMONTH"); // Previous month campaign performance
 const SHEET_CAMPAIGN_LAST_2_MONTH = SHEET.getSheetByName("LAST2MONTH"); // 2 months ago campaign performance
+const SHEET_CAMPAIGN_PERDAY = SHEET.getSheetByName("PERDAY"); // Campaign performance per day data
 
 // Cell reference for last update timestamp
 const SHEET_CELL_DATE_UPDATE = "O1";

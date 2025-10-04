@@ -383,6 +383,79 @@ function galaksionRerunCampaigns() {
 }
 
 /**
+ * Restarts/resumes multiple campaigns listed in the PERDAY sheet
+ * Reads campaign IDs from column A and sends resume requests to Galaksion API
+ * Logs success and failure results for each campaign
+ *
+ * @returns {void}
+ */
+function galaksionRerunCampaignsPerDay() {
+  let campaigns = [];
+
+  const theLastRow = SHEET_CAMPAIGN_PERDAY.getLastRow();
+
+  if (theLastRow === 0) {
+    writeLog("No campaigns found in PERDAY sheet");
+    return;
+  }
+
+  const theValues = SHEET_CAMPAIGN_PERDAY.getRange(
+    "A1:A" + theLastRow
+  ).getValues();
+
+  if (theValues.length == 0) return;
+
+  if (theValues[0].length == 0) return;
+
+  if (theValues[0][0] == "#N/A") return;
+
+  campaigns = theValues
+    .map((dvalue) => {
+      return dvalue[0];
+    })
+    .filter((campaign) => campaign !== "" && campaign != null);
+
+  if (campaigns.length === 0) {
+    writeLog("No valid campaigns found in PERDAY sheet column A");
+    return;
+  }
+
+  try {
+    const galaksionCampaign = new GalaksionCampaigns();
+
+    // Use the resumeCampaigns method to start campaigns
+    const results = galaksionCampaign.resumeCampaigns(campaigns);
+
+    Logger.log({ results, campaigns, theValues });
+
+    // Check results and log accordingly
+    const successfulCampaigns = results
+      .filter((r) => r.success)
+      .map((r) => r.campaignId);
+    const failedCampaigns = results.filter((r) => !r.success);
+
+    if (successfulCampaigns.length > 0) {
+      writeLog(
+        `Start campaigns from PERDAY : ${successfulCampaigns.join(", ")}`
+      );
+    }
+
+    if (failedCampaigns.length > 0) {
+      const failedIds = failedCampaigns.map((r) => r.campaignId);
+      const errors = failedCampaigns.map((r) => r.error).join(", ");
+      writeLog(
+        `Cant start campaigns from PERDAY : ${failedIds.join(
+          ", "
+        )} | Reason: ${errors}`
+      );
+    }
+  } catch (error) {
+    Logger.log({ error: error.message });
+    writeLog(`⚠️ Error starting campaigns from PERDAY: ${error.message}`);
+  }
+}
+
+/**
  * Checks if automation should be automatically enabled and updates the configuration
  * Compares current time with AUTOENABLE_CAMPAIGN setting and enables automation
  * if the scheduled time has passed
